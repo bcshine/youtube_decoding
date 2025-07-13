@@ -10,62 +10,19 @@ import os
 import uuid
 import tempfile
 import zipfile
+import io
 from datetime import datetime
 import yt_dlp
 import whisper
 import re
 from PIL import Image
 
-# 페이지 설정
-# 로고 이미지를 PIL Image로 로드
-try:
-    logo_image = Image.open("logo2.png")
-except:
-    logo_image = "🎬"  # 로고 파일이 없으면 이모지 사용
-
+# 기본 페이지 설정
 st.set_page_config(
-    page_title="유튜브 텍스트 변환기",
-    page_icon=logo_image,
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="YouTube 컨텐츠 변환기",
+    page_icon="🎬",
+    layout="centered"
 )
-
-# CSS 스타일링
-st.markdown("""
-<style>
-    .main {
-        padding-top: 2rem;
-    }
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.5rem 2rem;
-        font-size: 16px;
-        font-weight: 500;
-        transition: transform 0.2s;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    .error-box {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # 세션 상태 초기화
 if 'model' not in st.session_state:
@@ -76,6 +33,13 @@ if 'conversion_complete' not in st.session_state:
     st.session_state.conversion_complete = False
 if 'result_files' not in st.session_state:
     st.session_state.result_files = []
+
+# 페이지 로드 시 이전 결과 정리
+if st.session_state.conversion_complete and st.session_state.result_files:
+    # 파일이 실제로 존재하지 않으면 세션 초기화
+    if not any(os.path.exists(f['path']) for f in st.session_state.result_files):
+        st.session_state.conversion_complete = False
+        st.session_state.result_files = []
 
 @st.cache_resource
 def load_whisper_model():
@@ -178,67 +142,63 @@ def convert_audio_to_text(audio_path, model, progress_callback=None):
         raise Exception(f"텍스트 변환 실패: {str(e)}")
 
 def main():
-    # 헤더 - 로고를 가로 중앙에 배치
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        # 로고 파일이 존재하는지 확인
-        logo_path = "logo2.png"
-        if os.path.exists(logo_path):
-            # 중앙 정렬을 위한 컨테이너
-            st.markdown("<div style='display: flex; justify-content: center;'>", unsafe_allow_html=True)
-            st.image(logo_path, width=100)
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            # 로고가 없으면 이모지로 대체
-            st.markdown("<div style='text-align: center; font-size: 60px;'>🎬</div>", unsafe_allow_html=True)
-    
-    st.title("유튜브 텍스트 변환기")
-    
-    st.markdown("---")
+    # 간단한 헤더
+    st.markdown("<h1 style='font-size: 32px'>* YouTube 컨텐츠 변환기 *</h1>", unsafe_allow_html=True)
+    st.write("YouTube 영상을 텍스트로 변환하는 도구입니다.")
     
     # Whisper 모델 로드
     if st.session_state.model is None:
-        with st.spinner("Whisper 모델 로딩 중..."):
+        with st.spinner('Whisper 모델을 로딩 중입니다...'):
             st.session_state.model = load_whisper_model()
     
-    if st.session_state.model is None:
-        st.error("❌ Whisper 모델을 로드할 수 없습니다. 페이지를 새로고침해주세요.")
+    if st.session_state.model:
+        st.success("✅ AI 모델이 준비되었습니다!")
+    else:
+        st.error("❌ 모델 로드에 실패했습니다. 페이지를 새로고침해주세요.")
         return
     
-    st.success("✅ Whisper 모델 로드 완료")
-    
     # URL 입력
-    st.subheader("📝 유튜브 URL 입력")
+    st.subheader("🔗 YouTube URL 입력")
     url = st.text_input(
-        "유튜브 URL을 입력하세요:",
+        "YouTube URL",
         placeholder="https://www.youtube.com/watch?v=...",
-        help="유튜브 동영상의 전체 URL을 입력해주세요."
+        key="youtube_url"
     )
     
     # 변환 버튼
-    if st.button("🚀 변환 시작", type="primary"):
+    convert_button = st.button(
+        "🚀 변환 시작",
+        type="primary"
+    )
+    
+    if convert_button:
         if not url:
-            st.error("❌ 유튜브 URL을 입력해주세요.")
+            st.error("❌ YouTube URL을 입력해주세요.")
         elif not is_valid_youtube_url(url):
-            st.error("❌ 올바른 유튜브 URL을 입력해주세요.")
+            st.error("❌ 올바른 YouTube URL을 입력해주세요.")
         else:
             # 변환 프로세스 시작
             convert_video(url)
     
-    # 결과 표시
-    if st.session_state.conversion_complete and st.session_state.result_files:
+
+    
+    # 결과 표시 - 조건을 더 엄격하게 확인
+    if (st.session_state.conversion_complete and 
+        st.session_state.result_files and 
+        any(os.path.exists(f['path']) for f in st.session_state.result_files)):
         display_results()
 
 def convert_video(url):
     """비디오 변환 프로세스"""
     try:
-        # 진행률 표시
+        st.info("🔄 변환을 시작합니다...")
+        
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         def update_progress(message, progress):
             progress_bar.progress(progress / 100)
-            status_text.text(message)
+            status_text.info(message)
         
         # 임시 디렉토리 생성
         task_id = str(uuid.uuid4())
@@ -246,11 +206,11 @@ def convert_video(url):
         os.makedirs(output_dir, exist_ok=True)
         
         # 1단계: 다운로드 및 음성 추출
-        update_progress("영상 다운로드 및 음성 추출 중...", 20)
+        update_progress("📥 영상 다운로드 및 음성 추출 중...", 20)
         file_paths = download_and_extract_audio(url, output_dir, update_progress)
         
         # 2단계: 텍스트 변환
-        update_progress("음성을 텍스트로 변환 중...", 60)
+        update_progress("🤖 AI가 음성을 텍스트로 변환 중...", 60)
         text_path, transcript_text = convert_audio_to_text(
             file_paths['audio'], 
             st.session_state.model, 
@@ -258,7 +218,7 @@ def convert_video(url):
         )
         
         # 3단계: 결과 파일 준비
-        update_progress("결과 파일 준비 중...", 90)
+        update_progress("📋 결과 파일 준비 중...", 90)
         
         # 결과 파일 정보 저장 (비디오, 오디오, 텍스트 모두 포함)
         st.session_state.result_files = []
@@ -289,7 +249,7 @@ def convert_video(url):
                 'content': transcript_text
             })
         
-        update_progress("변환 완료!", 100)
+        update_progress("✨ 변환 완료!", 100)
         st.session_state.conversion_complete = True
         
         # 성공 메시지
@@ -304,64 +264,74 @@ def convert_video(url):
         status_text.empty()
 
 def display_results():
-    """변환 결과 표시"""
-    st.markdown("---")
-    st.subheader("📋 변환 결과")
+    """결과 표시 - 기본 스타일"""
+    if not st.session_state.result_files:
+        return
     
-    # 텍스트 결과 표시
-    text_file = next((f for f in st.session_state.result_files if f['type'] == 'text'), None)
+    # 실제 존재하는 파일만 필터링
+    valid_files = [f for f in st.session_state.result_files if os.path.exists(f['path'])]
+    if not valid_files:
+        return
+    
+    st.success("✅ 변환이 완료되었습니다!")
+    
+    # 텍스트 내용 표시 (있는 경우)
+    text_file = next((f for f in valid_files if f['type'] == 'text'), None)
     if text_file and 'content' in text_file:
-        st.markdown("**📝 변환된 텍스트:**")
+        st.subheader("📝 변환된 텍스트")
         st.text_area(
             "변환 결과",
             value=text_file['content'],
             height=200,
-            help="변환된 텍스트입니다. 복사하여 사용하세요."
+            key="transcript_display"
         )
     
-    # 다운로드 버튼들
-    st.markdown("**📥 파일 다운로드:**")
+    # 다운로드 섹션
+    st.subheader("💾 파일 다운로드")
     
-    col1, col2, col3 = st.columns(3)
+    # 개별 파일 다운로드
+    for file_info in valid_files:
+        with open(file_info['path'], 'rb') as f:
+            file_data = f.read()
+        
+        # 파일 타입에 따른 라벨
+        type_labels = {
+            'video': '🎬 비디오 파일',
+            'audio': '🎵 오디오 파일', 
+            'text': '📄 텍스트 파일'
+        }
+        
+        label = type_labels.get(file_info['type'], '📁 파일')
+        
+        st.download_button(
+            label=f"{label}: {file_info['name']}",
+            data=file_data,
+            file_name=file_info['name'],
+            key=f"download_{file_info['name']}"
+        )
     
-    for i, file_info in enumerate(st.session_state.result_files):
-        if os.path.exists(file_info['path']):
-            with open(file_info['path'], 'rb') as f:
-                file_data = f.read()
-            
-            col = [col1, col2, col3][i % 3]
-            with col:
-                # 파일 타입에 따른 아이콘과 MIME 타입 설정
-                if file_info['type'] == 'video':
-                    icon = "🎥"
-                    mime_type = "video/mp4"
-                elif file_info['type'] == 'audio':
-                    icon = "🎵"
-                    mime_type = "audio/mpeg"
-                else:  # text
-                    icon = "📄"
-                    mime_type = "text/plain"
-                
-                st.download_button(
-                    label=f"{icon} {file_info['name']}",
-                    data=file_data,
-                    file_name=file_info['name'],
-                    mime=mime_type
-                )
-    
-    # 전체 ZIP 다운로드
-    if len(st.session_state.result_files) > 1:
-        zip_data = create_zip_file()
-        if zip_data:
-            st.download_button(
-                label="📦 전체 파일 다운로드 (ZIP)",
-                data=zip_data,
-                file_name="youtube_conversion.zip",
-                mime="application/zip"
-            )
+    # ZIP 파일 다운로드
+    if len(valid_files) > 1:
+        st.subheader("📦 전체 다운로드")
+        
+        # ZIP 파일 생성
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file_info in valid_files:
+                zip_file.write(file_info['path'], file_info['name'])
+        
+        zip_data = zip_buffer.getvalue()
+        
+        st.download_button(
+            label="📦 모든 파일을 ZIP으로 다운로드",
+            data=zip_data,
+            file_name="youtube_conversion_files.zip",
+            mime="application/zip"
+        )
     
     # 새 변환 버튼
     if st.button("🔄 새로운 변환 시작"):
+        # 세션 상태 초기화
         st.session_state.conversion_complete = False
         st.session_state.result_files = []
         st.rerun()
