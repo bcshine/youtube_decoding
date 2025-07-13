@@ -1,20 +1,8 @@
-# 유튜브 텍스트 변환기 - 필수 패키지
+# 유튜브 텍스트 변환기 - 최소 의존성
 
-# 웹 프레임워크
-Flask==2.3.3
-Flask-CORS==4.0.0
-
-# 유튜브 다운로드
-yt-dlp==2023.10.13
-
-# 음성 인식
-openai-whisper==20231117
-
-# 오디오 처리
-ffmpeg-python==0.2.0
-
-# 기타 유틸리티
-requests==2.31.0
-numpy==1.24.3
-torch==2.1.0
-torchaudio==2.1.0
+# 핵심 패키지만 포함 (버전 범위 지정으로 호환성 향상)
+streamlit>=1.28.0
+yt-dlp>=2023.7.6
+openai-whisper>=20231117
+ffmpeg-python>=0.2.0
+requests>=2.31.0
