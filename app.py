@@ -143,7 +143,7 @@ def convert_audio_to_text(audio_path, model, progress_callback=None):
 
 def main():
     # 간단한 헤더
-    st.markdown("<h1 style='font-size: 32px'>* YouTube 컨텐츠 변환기 *</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='font-size: 32px'>YouTube 컨텐츠 변환기</h1>", unsafe_allow_html=True)
     st.write("YouTube 영상을 텍스트로 변환하는 도구입니다.")
     
     # Whisper 모델 로드
